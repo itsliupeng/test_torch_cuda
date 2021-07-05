@@ -14,8 +14,8 @@ def shift(x, n_segment, fold_div=3):
 
 
 if __name__ == '__main__':
-    nt = 2
-    c = 3
+    nt = 16
+    c = 256
     h = 2
     w = 2
     n_segment = nt

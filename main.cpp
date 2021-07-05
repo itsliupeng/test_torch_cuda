@@ -51,6 +51,7 @@ int main() {
     std::cout << "in tensor: " << in << std::endl;
     std::cout << "right_out: " << right_out << std::endl;
     auto stream = c10::cuda::getCurrentCUDAStream(0);
+
     temporal_shift_kernelLauncher(out.data_ptr<float>(), in.data_ptr<float>(), nt, c, h, w, n_segment, fold_div, stream.stream());
     std::cout << "out tensor: " << out << std::endl;
 
