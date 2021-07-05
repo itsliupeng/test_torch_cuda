@@ -35,7 +35,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(cuda)
 
-add_executable(main main.cpp)
+add_executable(main focus.cpp)
 target_link_libraries(main PUBLIC cuda_kernels ${TORCH_LIBRARIES})
 
 #set_target_properties(

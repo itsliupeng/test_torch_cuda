@@ -23,3 +23,6 @@ template <typename T>
 void temporal_shift_kernelLauncher(T *output, T *input, int nt, int c, int h, int w, int n_segment, int fold_div, cudaStream_t stream);
 
 //void temporal_shift_kernelLauncher(float *output, float *input, int nt, int c, int h, int w, int n_segment, int fold_div, cudaStream_t stream);
+
+template <typename T>
+void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaStream_t stream);

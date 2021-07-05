@@ -55,7 +55,7 @@ __global__ void temporal_shift(T *output, const T *input, int n_segment,
   } else {
     output[tid] = input[tid];
   }
-  __syncthreads();
+//  __syncthreads();
 }
 
 // grid(c, n_segment, n_batch)
@@ -84,3 +84,40 @@ template void temporal_shift_kernelLauncher(half *output, half *input, int nt, i
 //    int fold = int(c / fold_div);
 //    temporal_shift<<<grid, blocSize, 0, stream>>>(output, input, n_segment, fold);
 //}
+
+
+template <typename T>
+__global__ void focus(T *output, const T *input, int h, int w) {
+    const size_t bid = (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
+    const size_t tid = threadIdx.x;
+    const size_t si = bid * blockDim.x + tid;
+
+    bool ix = tid % 2 == 0;
+    bool iy = blockIdx.x % 2 == 0;
+
+    // tid < w, blockIdx.x  < h
+
+    size_t dst_bid;
+    if (ix && iy) {
+        dst_bid = (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+    } else if ((!ix) && iy) {
+        dst_bid = ((blockIdx.z+1) * gridDim.y +  blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+    } else if (ix && !iy) {
+        dst_bid = ((blockIdx.z+2) * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+    } else {
+        dst_bid = ((blockIdx.z+3) * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+    }
+
+   auto di = dst_bid * (blockDim.x / 2) + tid / 2;
+   output[di] = input[si];
+}
+
+template <typename T>
+void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaStream_t stream) {
+    dim3 grid(h, c, n);
+    dim3 block(w);
+    assert(w <= 1024);
+    focus<<<grid, block, 0, stream>>>(output, input, h, w);
+}
+
+template void focus_kernelLauncher(float* output, float* input, int n, int c, int h, int w, cudaStream_t stream);
