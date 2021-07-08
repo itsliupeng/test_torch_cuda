@@ -133,7 +133,7 @@ __global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T st
     if (threadIdx.x >= N)
         return;
 
-    auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
+    auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * N + threadIdx.x;
     auto y = sigmoid(input[sid]);
 
     //  pytorch:
