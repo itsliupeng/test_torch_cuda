@@ -52,9 +52,9 @@ torch::Tensor anchor_decode(const torch::Tensor in_tensor,
 
     using namespace torch::indexing;
 
-    auto a0 = (y.index({Slice(), Slice(), Slice(), Slice(), Slice(None, 2)}) * 2.0 - 0.5 + grid) * stride;
-    auto a1 = (y.index({Slice(), Slice(), Slice(), Slice(), Slice(2, 4)}) * 2).pow(2) * anchor;
-    auto a2 = y.index({Slice(), Slice(), Slice(), Slice(), Slice(4)});
+    auto a0 = (y.index({Ellipsis, Slice(None, 2)}) * 2.0 - 0.5 + grid) * stride;
+    auto a1 = (y.index({Ellipsis, Slice(2, 4)}) * 2).pow(2) * anchor;
+    auto a2 = y.index({Ellipsis, Slice(4)});
     return torch::cat({a0, a1, a2}, -1).view({bs, -1, no});
 }
 
