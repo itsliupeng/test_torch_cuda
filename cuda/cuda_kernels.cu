@@ -134,7 +134,7 @@ __global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T st
         return;
 
     auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
-    output[sid] = sigmoid(input[sid]);
+    auto y = sigmoid(input[sid]);
 
     //  pytorch:
     //   y = x[i].sigmoid()
@@ -147,15 +147,16 @@ __global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T st
         int col = blockIdx.x % w;
         int anchor_idx = blockIdx.y;
         if (threadIdx.x == 0) {
-            output[sid] = (output[sid] * 2.0f - 0.5f + col) * stride;
+            y = (y * 2.0f - 0.5f + col) * stride;
         } else if (threadIdx.x == 1) {
-            output[sid] = (output[sid] * 2.0f - 0.5f + row) * stride;
+            y = (y * 2.0f - 0.5f + row) * stride;
         } else if (threadIdx.x == 2) {
-            output[sid] = powf((output[sid] * 2.0f), 2.0f) * anchors[2 * anchor_idx];
+            y = powf((y * 2.0f), 2.0f) * anchors[2 * anchor_idx];
         } else {
-            output[sid] = powf((output[sid] * 2.0f), 2.0f) * anchors[2 * anchor_idx + 1];
+            y = powf((y * 2.0f), 2.0f) * anchors[2 * anchor_idx + 1];
         }
     }
+    output[sid] = y;
 }
 
 void anchor_decode_kernelLauncher(float *output, const float *input, int n, int na, int no, int h, int w, float *anchors, float stride, cudaStream_t stream) {
