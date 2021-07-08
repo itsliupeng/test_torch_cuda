@@ -16,12 +16,12 @@ int main() {
     int c = 1;
     int h = 4;
     int w = 4;
-    auto in = torch::arange(nt * c * h * w, {at::kCUDA}).reshape({nt, c, h, w}).to({at::kFloat});
+    auto in = torch::arange(nt * c * h * w, {at::kCUDA}).reshape({nt, c, h, w}).to({at::kHalf});
     auto out = torch::zeros({nt, 4 * c, h / 2, w / 2}, in.options());
     std::cout << "in tensor: " << in << std::endl;
     auto stream = c10::cuda::getCurrentCUDAStream(0);
 
-    focus_kernelLauncher(out.data_ptr<float>(), in.data_ptr<float>(), nt, c, h, w, stream.stream());
+    focus_kernelLauncher((half*)out.data_ptr<at::Half>(), (half*)in.data_ptr<at::Half>(), nt, c, h, w, stream.stream());
     std::cout << "out tensor: " << out << std::endl;
 
     std::cout << "Done." << std::endl;

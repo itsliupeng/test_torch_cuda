@@ -26,3 +26,5 @@ void temporal_shift_kernelLauncher(T *output, T *input, int nt, int c, int h, in
 
 template <typename T>
 void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaStream_t stream);
+
+void anchor_decode_kernelLauncher(float* output, const float* input, int n, int na, int no, int h, int w, float* anchors, float stride, cudaStream_t stream);

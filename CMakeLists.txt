@@ -35,8 +35,15 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(cuda)
 
-add_executable(main focus.cpp)
-target_link_libraries(main PUBLIC cuda_kernels ${TORCH_LIBRARIES})
+add_executable(anchor_decode anchor_decode.cpp)
+target_link_libraries(anchor_decode PUBLIC cuda_kernels ${TORCH_LIBRARIES})
+
+add_executable(focus focus.cpp)
+target_link_libraries(focus PUBLIC cuda_kernels ${TORCH_LIBRARIES})
+
+add_executable(temporal_shift temporal_shift.cpp)
+target_link_libraries(temporal_shift cuda_kernels ${TORCH_LIBRARIES})
+
 
 #set_target_properties(
 #        main

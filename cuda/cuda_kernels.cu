@@ -121,3 +121,48 @@ void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaS
 }
 
 template void focus_kernelLauncher(float* output, float* input, int n, int c, int h, int w, cudaStream_t stream);
+template void focus_kernelLauncher(half* output, half* input, int n, int c, int h, int w, cudaStream_t stream);
+template void focus_kernelLauncher(half2* output, half2* input, int n, int c, int h, int w, cudaStream_t stream);
+
+__device__ float sigmoid(float data) {
+    return 1.0f / (1.0f + expf(-data));
+};
+
+template <typename T>
+__global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T stride, int N) {
+    if (threadIdx.x >= N)
+        return;
+
+    auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
+    output[sid] = sigmoid(input[sid]);
+
+    //  pytorch:
+    //   y = x[i].sigmoid()
+    //   y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i].to(x[i].device)) * self.stride[i]  # xy
+    //   y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+    // v5: https://github.com/ultralytics/yolov5/issues/471
+
+    if (threadIdx.x < 4) {
+        int row = blockIdx.x / w;
+        int col = blockIdx.x % w;
+        int anchor_idx = blockIdx.y;
+        if (threadIdx.x == 0) {
+            output[sid] = (output[sid] * 2.0f - 0.5f + col) * stride;
+        } else if (threadIdx.x == 1) {
+            output[sid] = (output[sid] * 2.0f - 0.5f + row) * stride;
+        } else if (threadIdx.x == 2) {
+            output[sid] = powf((output[sid] * 2.0f), 2.0f) * anchors[2 * anchor_idx];
+        } else {
+            output[sid] = powf((output[sid] * 2.0f), 2.0f) * anchors[2 * anchor_idx + 1];
+        }
+    }
+}
+
+void anchor_decode_kernelLauncher(float *output, const float *input, int n, int na, int no, int h, int w, float *anchors, float stride, cudaStream_t stream) {
+    int TPB = (no + 32 - 1) / 32 * 32;
+    assert(TPB <= 1024);
+    dim3 grid(w * h, na, n);
+
+    anchor_decode<<<grid, TPB, 0, stream>>>(
+            (float *) output, (const float *) input, w, anchors, stride, no);
+}
