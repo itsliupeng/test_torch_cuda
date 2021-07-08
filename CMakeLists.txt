@@ -3,6 +3,12 @@ set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 
 project(test_cuda LANGUAGES CXX CUDA)
 
+function (set_ifndef variable value)
+    if(NOT DEFINED ${variable})
+        set(${variable} ${value} PARENT_SCOPE)
+    endif()
+endfunction()
+
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O0 -G -Xcompiler -Wall -Wno-deprecated-declarations")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -19,7 +25,8 @@ find_library(CUBLASLT_LIB cublasLt HINTS
 message(STATUS "CUDNN_ROOT_DIR ${CUDNN_ROOT_DIR},  CUDA_TOOLKIT_ROOT_DIR ${CUDA_TOOLKIT_ROOT_DIR} CUBLAS_LIB ${CUBLAS_LIB} CUBLASLT_LIB ${CUBLASLT_LIB}")
 
 # libtorch
-set(CMAKE_PREFIX_PATH /home/liupeng/anaconda3/envs/py36/lib/python3.6/site-packages/torch/share/cmake)
+set_ifndef(TORCH_PATH /home/liupeng/anaconda3/envs/py36/lib/python3.6/site-packages/torch/share/cmake)
+set(CMAKE_PREFIX_PATH ${TORCH_PATH}/share/cmake)
 find_package(Torch 1.7 REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 message(STATUS "TORCH_LIBRARIES: ${TORCH_LIBRARIES}")
