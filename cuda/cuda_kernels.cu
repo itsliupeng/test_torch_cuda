@@ -97,15 +97,17 @@ __global__ void focus(T *output, const T *input, int h, int w) {
 
     // tid < w, blockIdx.x  < h
 
+    auto dst_gridDim_y = 4 * gridDim.y;
+    auto dst_blockIdx_y_offset = 4 * blockIdx.y;
     size_t dst_bid;
-    if (ix && iy) {
-        dst_bid = (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
-    } else if ((!ix) && iy) {
-        dst_bid = ((blockIdx.z+1) * gridDim.y +  blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
-    } else if (ix && !iy) {
-        dst_bid = ((blockIdx.z+2) * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+    if (iy && ix) {
+        dst_bid = (blockIdx.z *  dst_gridDim_y + dst_blockIdx_y_offset) * gridDim.x / 2 + blockIdx.x / 2;
+    } else if ((!iy) && ix) {
+        dst_bid = (blockIdx.z * dst_gridDim_y +  dst_blockIdx_y_offset + 1) * gridDim.x / 2 + blockIdx.x / 2;
+    } else if (iy && !ix) {
+        dst_bid = (blockIdx.z * dst_gridDim_y + dst_blockIdx_y_offset + 2) * gridDim.x / 2 + blockIdx.x / 2;
     } else {
-        dst_bid = ((blockIdx.z+3) * gridDim.y + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
+        dst_bid = (blockIdx.z * dst_gridDim_y + dst_blockIdx_y_offset + 3) * gridDim.x / 2 + blockIdx.x / 2;
     }
 
    auto di = dst_bid * (blockDim.x / 2) + tid / 2;
@@ -129,11 +131,8 @@ __device__ float sigmoid(float data) {
 };
 
 template <typename T>
-__global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T stride, int N) {
-    if (threadIdx.x >= N)
-        return;
-
-    auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * N + threadIdx.x;
+__global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T stride) {
+    auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
     auto y = sigmoid(input[sid]);
 
     //  pytorch:
@@ -160,10 +159,8 @@ __global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T st
 }
 
 void anchor_decode_kernelLauncher(float *output, const float *input, int n, int na, int no, int h, int w, float *anchors, float stride, cudaStream_t stream) {
-    int TPB = (no + 32 - 1) / 32 * 32;
-    assert(TPB <= 1024);
     dim3 grid(w * h, na, n);
+    dim3 block(no);
 
-    anchor_decode<<<grid, TPB, 0, stream>>>(
-            (float *) output, (const float *) input, w, anchors, stride, no);
+    anchor_decode<<<grid, block, 0, stream>>>((float *) output, (const float *) input, w, anchors, stride);
 }
