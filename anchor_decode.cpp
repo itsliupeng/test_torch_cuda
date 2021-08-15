@@ -61,12 +61,12 @@ torch::Tensor anchor_decode(const torch::Tensor in_tensor,
 using namespace torch::indexing;
 
 int main() {
-    int n = 1;
-    int h = 3;
-    int w = 3;
+    int n = 2;
+    int h = 80;
+    int w = 80;
     int na = 3;
-    int no = 85;
-    auto in_tensor = torch::arange(n * 255 * h * w).reshape({{n, 255, h, w}}).to(torch::kFloat32);
+    int no = 6;
+    auto in_tensor = torch::arange(n * na * no * h * w).reshape({{n, na * no, h, w}}).to(torch::kFloat32);
 
     auto yx = torch::meshgrid({torch::arange(h), torch::arange(w)});
 
@@ -96,6 +96,8 @@ int main() {
 
     std::cout << "out tensor: " << a_out.index({Slice(), Slice(0, 10), Slice(0, 6)}) << std::endl;
 
+    auto diff = torch::abs(a_out.cpu() - torch_result);
+    std::cout << "diff: " << diff.max() << ", max " << diff.max();
     std::cout << "Done." << std::endl;
 
 

@@ -30,44 +30,44 @@
 
 // grid(c, n_segment, n_batch)
 // block(w*h)
-template <typename T>
+template<typename T>
 __global__ void temporal_shift(T *output, const T *input, int n_segment,
                                int fold) {
-  // input (n_batch, n_segment, c, h, w)
-  const size_t bid =
-      (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
-  const size_t tid = bid * blockDim.x + threadIdx.x;
+    // input (n_batch, n_segment, c, h, w)
+    const size_t bid =
+            (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
+    const size_t tid = bid * blockDim.x + threadIdx.x;
 
-  if (blockIdx.x < 2 * fold) {
-    size_t shift_bid;
-    if (blockIdx.x < fold && blockIdx.y >= 1) {
-      // left
-      shift_bid = (blockIdx.z * gridDim.y + (blockIdx.y - 1)) * gridDim.x + blockIdx.x;
-      output[shift_bid * blockDim.x + threadIdx.x] = input[tid];
-    } else if (blockIdx.x >= fold && blockIdx.y < n_segment - 1) {
-      // middle
-      shift_bid = (blockIdx.z * gridDim.y + (blockIdx.y + 1)) * gridDim.x + blockIdx.x;
-      output[shift_bid * blockDim.x + threadIdx.x] = input[tid];
+    if (blockIdx.x < 2 * fold) {
+        size_t shift_bid;
+        if (blockIdx.x < fold && blockIdx.y >= 1) {
+            // left
+            shift_bid = (blockIdx.z * gridDim.y + (blockIdx.y - 1)) * gridDim.x + blockIdx.x;
+            output[shift_bid * blockDim.x + threadIdx.x] = input[tid];
+        } else if (blockIdx.x >= fold && blockIdx.y < n_segment - 1) {
+            // middle
+            shift_bid = (blockIdx.z * gridDim.y + (blockIdx.y + 1)) * gridDim.x + blockIdx.x;
+            output[shift_bid * blockDim.x + threadIdx.x] = input[tid];
+        } else {
+            //        output[tid] = input[tid];
+            //      output[tid] = (T)0.0f;
+        }
     } else {
-//        output[tid] = input[tid];
-//      output[tid] = (T)0.0f;
+        output[tid] = input[tid];
     }
-  } else {
-    output[tid] = input[tid];
-  }
-//  __syncthreads();
+    //  __syncthreads();
 }
 
 // grid(c, n_segment, n_batch)
 // block(w*h): < 1024
-template <typename T>
+template<typename T>
 void temporal_shift_kernelLauncher(T *output, T *input, int nt, int c, int h, int w, int n_segment, int fold_div, cudaStream_t stream) {
     int n_batch = int(nt / n_segment);
     dim3 grid(c, n_segment, n_batch);
     int blocSize = h * w;
     int fold = int(c / fold_div);
     if (std::is_same<T, half>::value) {
-        temporal_shift<<<grid, blocSize, 0, stream>>>((half2 *)output, (const half2 *)input, n_segment, fold);
+        temporal_shift<<<grid, blocSize, 0, stream>>>((half2 *) output, (const half2 *) input, n_segment, fold);
     } else {
         temporal_shift<<<grid, blocSize, 0, stream>>>(output, input, n_segment, fold);
     }
@@ -86,7 +86,7 @@ template void temporal_shift_kernelLauncher(half *output, half *input, int nt, i
 //}
 
 
-template <typename T>
+template<typename T>
 __global__ void focus(T *output, const T *input, int h, int w) {
     const size_t bid = (blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x;
     const size_t tid = threadIdx.x;
@@ -96,42 +96,39 @@ __global__ void focus(T *output, const T *input, int h, int w) {
     bool iy = blockIdx.x % 2 == 0;
 
     // tid < w, blockIdx.x  < h
-
-    auto dst_gridDim_y = 4 * gridDim.y;
-    auto dst_blockIdx_y_offset = 4 * blockIdx.y;
     size_t dst_bid;
     if (iy && ix) {
-        dst_bid = (blockIdx.z *  dst_gridDim_y + dst_blockIdx_y_offset) * gridDim.x / 2 + blockIdx.x / 2;
+        dst_bid = (blockIdx.z * (4 * gridDim.y) + blockIdx.y) * gridDim.x / 2 + blockIdx.x / 2;
     } else if ((!iy) && ix) {
-        dst_bid = (blockIdx.z * dst_gridDim_y +  dst_blockIdx_y_offset + 1) * gridDim.x / 2 + blockIdx.x / 2;
+        dst_bid = (blockIdx.z * (4 * gridDim.y) + blockIdx.y + 1 * gridDim.y) * gridDim.x / 2 + blockIdx.x / 2;
     } else if (iy && !ix) {
-        dst_bid = (blockIdx.z * dst_gridDim_y + dst_blockIdx_y_offset + 2) * gridDim.x / 2 + blockIdx.x / 2;
+        dst_bid = (blockIdx.z * (4 * gridDim.y) + blockIdx.y + 2 * gridDim.y) * gridDim.x / 2 + blockIdx.x / 2;
     } else {
-        dst_bid = (blockIdx.z * dst_gridDim_y + dst_blockIdx_y_offset + 3) * gridDim.x / 2 + blockIdx.x / 2;
+        dst_bid = (blockIdx.z * (4 * gridDim.y) + blockIdx.y + 3 * gridDim.y) * gridDim.x / 2 + blockIdx.x / 2;
     }
 
-   auto di = dst_bid * (blockDim.x / 2) + tid / 2;
-   output[di] = input[si];
+    auto di = dst_bid * (blockDim.x / 2) + tid / 2;
+    output[di] = input[si];
 }
 
-template <typename T>
-void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaStream_t stream) {
+template<typename T>
+void focus_kernelLauncher(T *output, T *input, int n, int c, int h, int w, cudaStream_t stream) {
     dim3 grid(h, c, n);
     dim3 block(w);
     assert(w <= 1024);
     focus<<<grid, block, 0, stream>>>(output, input, h, w);
 }
 
-template void focus_kernelLauncher(float* output, float* input, int n, int c, int h, int w, cudaStream_t stream);
-template void focus_kernelLauncher(half* output, half* input, int n, int c, int h, int w, cudaStream_t stream);
-template void focus_kernelLauncher(half2* output, half2* input, int n, int c, int h, int w, cudaStream_t stream);
+template void focus_kernelLauncher(float *output, float *input, int n, int c, int h, int w, cudaStream_t stream);
+template void focus_kernelLauncher(half *output, half *input, int n, int c, int h, int w, cudaStream_t stream);
+template void focus_kernelLauncher(half2 *output, half2 *input, int n, int c, int h, int w, cudaStream_t stream);
 
 __device__ float sigmoid(float data) {
     return 1.0f / (1.0f + expf(-data));
 };
 
-template <typename T>
-__global__ void anchor_decode(T* output, const T* input, int w, T* anchors, T stride) {
+template<typename T>
+__global__ void anchor_decode(T *output, const T *input, int w, T *anchors, T stride) {
     auto sid = ((blockIdx.z * gridDim.y + blockIdx.y) * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
     auto y = sigmoid(input[sid]);
 
@@ -164,3 +161,4 @@ void anchor_decode_kernelLauncher(float *output, const float *input, int n, int 
 
     anchor_decode<<<grid, block, 0, stream>>>((float *) output, (const float *) input, w, anchors, stride);
 }
+

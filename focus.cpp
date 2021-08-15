@@ -18,22 +18,24 @@ torch::Tensor focus(torch::Tensor in) {
 }
 
 int main() {
-    int nt = 1;
-    int c = 1;
+    int nt = 3;
+    int c = 12;
     int h = 8;
     int w = 8;
     auto in = torch::arange(nt * c * h * w, {at::kCUDA}).reshape({nt, c, h, w}).to({at::kHalf});
-    std::cout << "in tensor: " << in << std::endl;
+//    auto in = torch::randn(nt * c * h * w, {at::kCUDA}).reshape({nt, c, h, w}).to({at::kHalf});
+//    std::cout << "in tensor: " << in << std::endl;
 
     auto out = torch::zeros({nt, 4 * c, h / 2, w / 2}, in.options());
-    std::cout << "real out tensor: " << focus(in) << std::endl;
+//    std::cout << "real out tensor: " << focus(in) << std::endl;
 
     auto stream = c10::cuda::getCurrentCUDAStream(0);
 
     focus_kernelLauncher((half *) out.data_ptr<at::Half>(), (half *) in.data_ptr<at::Half>(), nt, c, h, w, stream.stream());
-    std::cout << "out tensor: " << out << std::endl;
+//    std::cout << "out tensor: " << out << std::endl;
     auto diff = torch::abs(focus(in) - out);
     std::cout << "diff max " << diff.max() << ", sum " << diff.sum() << std::endl;
-    std::cout << "Done." << std::endl;
+
+//    std::cout << "Done." << std::endl;
     return 0;
 }
