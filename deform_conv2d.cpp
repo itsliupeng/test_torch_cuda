@@ -19,10 +19,10 @@ torch::Tensor focus(torch::Tensor in) {
 }
 
 int main() {
-    int bs = 1;
+    int bs = 3;
     int in_c = 3;
-    int in_h = 2;
-    int in_w = 2;
+    int in_h = 8;
+    int in_w = in_h;
 
     int kernel = 3;
     int pad = 1;
@@ -38,7 +38,7 @@ int main() {
     auto out_h = (in_h + 2 * pad - dilation_kernel) / stride + 1;
     auto out_w = (in_w + 2 * pad - dilation_kernel) / stride + 1;
 
-    auto options = at::TensorOptions().dtype(at::kHalf).device(at::kCUDA);
+    auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA);
 
     auto in = torch::arange(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
     auto offset = torch::ones({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
@@ -50,7 +50,6 @@ int main() {
     bool use_mask = true;
     auto vision_out = vision::ops::deform_conv2d(in, weight, offset, mask, bias, stride, stride, pad, pad, dilation, dilation, weight_groups, offset_groups, use_mask);
 
-
     std::cout << "input: \n"
               << in << std::endl;
 
@@ -58,8 +57,8 @@ int main() {
               << vision_out << std::endl;
 
 
-    auto dcn_out = torch::zeros({bs, out_c, out_h, out_w}, options);
-    auto column = torch::zeros({in_c, kernel, kernel, bs, out_h, out_w}, options);
+    auto dcn_out = torch::zeros({out_c, bs, out_h, out_w}, options);
+    auto column = torch::zeros({weight_groups, in_c / weight_groups * kernel * kernel, bs, out_h, out_w}, options);
 
     cublasHandle_t cublas_handle;
     check_cuda_error(cublasCreate(&cublas_handle));
@@ -67,10 +66,35 @@ int main() {
     check_cuda_error(cublasSetStream(cublas_handle, stream));
 
 
-    deform_conv2d_kernel_launcher(dcn_out.data_ptr<float>(), column.data_ptr<float>(), in.data_ptr<float>(), mask.data_ptr<float>(), offset.data_ptr<float>(), weight.data_ptr<float>(), bias.data_ptr<float>(),
-            in.size(0), in.size(2), in.size(3),weight.size(0), weight.size(1), weight.size(2), weight.size(3),
-                                  pad, pad, stride, stride, dilation, dilation, offset_groups, dcn_out.size(2), dcn_out.size(3), use_mask, cublas_handle, stream);
+    deform_conv2d_kernel_launcher(
+            dcn_out.data_ptr<float>(),
+            column.data_ptr<float>(),
+            in.data_ptr<float>(),
+            offset.data_ptr<float>(),
+            mask.data_ptr<float>(),
+            weight.data_ptr<float>(),
+            bias.data_ptr<float>(),
+            in.size(0),
+            in.size(2),
+            in.size(3),
+            weight.size(0),
+            weight.size(1),
+            weight.size(2),
+            weight.size(3),
+            pad,
+            pad,
+            stride,
+            stride,
+            dilation,
+            dilation,
+            offset_groups,
+            dcn_out.size(2),
+            dcn_out.size(3),
+            use_mask,
+            cublas_handle,
+            stream);
 
+    dcn_out = dcn_out.permute({1, 0, 2, 3});
 
     std::cout << "dcn out: \n"
               << dcn_out << std::endl;

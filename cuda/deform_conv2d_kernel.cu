@@ -4,32 +4,32 @@
 #include "cuda_kernels.h"
 #define CUDA_1D_KERNEL_LOOP(i, n) \
     for (int i = (blockIdx.x * blockDim.x) + threadIdx.x; i < (n); i += (blockDim.x * gridDim.x))
-
-template<typename T>
-__global__ void add_bias(T *x, const T *bias, int n) {
-    const int bid = blockIdx.x;
-    auto b = __ldg(&bias[bid]);
-    for (int tid = threadIdx.x; tid < n; tid += blockDim.x)
-        x[bid * n + tid] += b;
-}
-
-// [channel, batch, H, W] x + [channel] bias
-template<typename T>
-void add_bias_kernelLauncher(T *x, const T *bias, int channel, int batch, int H, int W, cudaStream_t stream) {
-    dim3 grid(channel);
-    int n = W * H * batch;
-    int blockSize = n;
-    if (std::is_same<T, half>::value && (n % 2 == 0)) {
-        blockSize = n / 2;
-        if (blockSize > 1024)
-            blockSize = 1024;
-        add_bias<<<grid, blockSize, 0, stream>>>((half2 *) x, (const half2 *) bias, n / 2);
-    } else {
-        if (blockSize > 1024)
-            blockSize = 1024;
-        add_bias<<<grid, blockSize, 0, stream>>>(x, bias, n);
-    }
-}
+//
+//template<typename T>
+//__global__ void add_bias(T *x, const T *bias, int n) {
+//    const int bid = blockIdx.x;
+//    auto b = bias[bid];
+//    for (int tid = threadIdx.x; tid < n; tid += blockDim.x)
+//        x[bid * n + tid] += b;
+//}
+//
+//// [channel, batch, H, W] x + [channel] bias
+//template<typename T>
+//void add_bias_kernelLauncher(T *x, const T *bias, int channel, int batch, int H, int W, cudaStream_t stream) {
+//    dim3 grid(channel);
+//    int n = W * H * batch;
+//    int blockSize = n;
+//    if (std::is_same<T, half>::value && (n % 2 == 0)) {
+//        blockSize = n / 2;
+//        if (blockSize > 1024)
+//            blockSize = 1024;
+//        add_bias<<<grid, blockSize, 0, stream>>>((half2 *) x, (const half2 *) bias, n / 2);
+//    } else {
+//        if (blockSize > 1024)
+//            blockSize = 1024;
+//        add_bias<<<grid, blockSize, 0, stream>>>(x, bias, n);
+//    }
+//}
 
 template<typename T>
 __device__ T bilinear_interpolate(const T *in, int height, int width, T h, T w) {
@@ -49,16 +49,16 @@ __device__ T bilinear_interpolate(const T *in, int height, int width, T h, T w) 
 
     T v1 = 0;
     if (h_low >= 0 && w_low >= 0)
-        v1 = __ldg(&in[h_low * width + w_low]);
+        v1 = in[h_low * width + w_low];
     T v2 = 0;
     if (h_low >= 0 && w_high <= width - 1)
-        v2 = __ldg(&in[h_low * width + w_high]);
+        v2 = in[h_low * width + w_high];
     T v3 = 0;
     if (h_high <= height - 1 && w_low >= 0)
-        v3 = __ldg(&in[h_high * width + w_low]);
+        v3 = in[h_high * width + w_low];
     T v4 = 0;
     if (h_high <= height - 1 && w_high <= width - 1)
-        v4 = __ldg(&in[h_high * width + w_high]);
+        v4 = in[h_high * width + w_high];
 
     T w1 = hh * hw, w2 = hh * lw, w3 = lh * hw, w4 = lh * lw;
 
@@ -116,11 +116,11 @@ __global__ void deformable_im2col_kernel(
 
                 T mask_value = 1;
                 if (use_mask) {
-                    mask_value = __ldg(&mask_ptr[mask_idx * (out_h * out_w) + out_y * out_w + out_x]);
+                    mask_value = mask_ptr[mask_idx * (out_h * out_w) + out_y * out_w + out_x];
                 }
 
-                const T offset_h = __ldg(&offset_ptr[offset_idx * (out_h * out_w) + out_y * out_w + out_x]);
-                const T offset_w = __ldg(&offset_ptr[(offset_idx + 1) * (out_h * out_w) + out_y * out_w + out_x]);
+                const T offset_h = offset_ptr[offset_idx * (out_h * out_w) + out_y * out_w + out_x];
+                const T offset_w = offset_ptr[(offset_idx + 1) * (out_h * out_w) + out_y * out_w + out_x];
                 const T y = T(out_y * stride_h - pad_h) + T(i * dilation_h) + offset_h;
                 const T x = T(out_x * stride_w - pad_w) + T(j * dilation_w) + offset_w;
                 *columns_ptr = mask_value * bilinear_interpolate(input_ptr, height, width, y, x);
@@ -263,11 +263,11 @@ void deform_conv2d_kernel_launcher(
     }
 
     // output [out_c, bs, out_h, out_w]
-    add_bias_kernelLauncher((T *) columns_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
-    cudaError_t bias_err = cudaGetLastError();
-    if (bias_err != cudaSuccess) {
-        printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
-    }
+//    add_bias_kernelLauncher((T *) columns_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
+//    cudaError_t bias_err = cudaGetLastError();
+//    if (bias_err != cudaSuccess) {
+//        printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
+//    }
 }
 template void deform_conv2d_kernel_launcher(
         float *output_ptr,
