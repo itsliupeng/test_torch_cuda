@@ -92,7 +92,28 @@ __device__ T bilinear_interpolate(const T *in, int height, int width, T h, T w) 
 }
 
 template<typename T>
-__global__ void deformable_im2col_kernel(int n, const T *input_ptr, const T *offset_ptr, const T *mask_ptr, int height, int width, int weight_h, int weight_w, int pad_h, int pad_w, int stride_h, int stride_w, int dilation_h, int dilation_w, int batch_sz, int n_in_channels, int n_offset_grps, int out_h, int out_w, bool use_mask, bool use_sigmoid, T *columns_ptr) {
+__global__ void deformable_im2col_kernel(
+        int n,
+        const T *input_ptr,
+        const T *offset_ptr,
+        const T *mask_ptr,
+        int height,
+        int width,
+        int weight_h,
+        int weight_w,
+        int pad_h,
+        int pad_w,
+        int stride_h,
+        int stride_w,
+        int dilation_h,
+        int dilation_w,
+        int batch_sz,
+        int n_in_channels,
+        int n_offset_grps,
+        int out_h,
+        int out_w,
+        bool use_mask,
+        T *columns_ptr) {
     CUDA_1D_KERNEL_LOOP(index, n) {
         const int out_x = index % out_w;
         const int out_y = (index / out_w) % out_h;
@@ -121,9 +142,6 @@ __global__ void deformable_im2col_kernel(int n, const T *input_ptr, const T *off
                 T mask_value = 1;
                 if (use_mask) {
                     mask_value = mask_ptr[mask_idx * (out_h * out_w) + out_y * out_w + out_x];
-                    if (use_sigmoid) {
-                        mask_value = 1.0f / (1.0f + expf(-mask_value));
-                    }
                 }
 
                 const T offset_h = offset_ptr[offset_idx * (out_h * out_w) + out_y * out_w + out_x];
@@ -233,12 +251,6 @@ void deform_conv2d_kernel_launcher(
     const unsigned int threads = 512;
     const unsigned int blocks = (num_kernels + threads - 1) / threads;
 
-    bool use_sigmoid = false;
-    if (!mask_ptr) {
-        use_sigmoid = true;
-        mask_ptr = (T *) ((char *) offset_ptr + (bs * offset_groups * kernel_h * kernel_w * 2 * out_h * out_w) * sizeof(T));
-    }
-
     deformable_im2col_kernel<<<blocks, threads, 0, stream>>>(
             num_kernels,
             (const T *) input_ptr,
@@ -260,7 +272,6 @@ void deform_conv2d_kernel_launcher(
             out_h,
             out_w,
             use_mask,
-            use_sigmoid,
             (T *) columns_ptr);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
