@@ -4,32 +4,57 @@
 #include "cuda_kernels.h"
 #define CUDA_1D_KERNEL_LOOP(i, n) \
     for (int i = (blockIdx.x * blockDim.x) + threadIdx.x; i < (n); i += (blockDim.x * gridDim.x))
-//
-//template<typename T>
-//__global__ void add_bias(T *x, const T *bias, int n) {
-//    const int bid = blockIdx.x;
-//    auto b = bias[bid];
-//    for (int tid = threadIdx.x; tid < n; tid += blockDim.x)
-//        x[bid * n + tid] += b;
-//}
-//
-//// [channel, batch, H, W] x + [channel] bias
-//template<typename T>
-//void add_bias_kernelLauncher(T *x, const T *bias, int channel, int batch, int H, int W, cudaStream_t stream) {
-//    dim3 grid(channel);
-//    int n = W * H * batch;
-//    int blockSize = n;
-//    if (std::is_same<T, half>::value && (n % 2 == 0)) {
-//        blockSize = n / 2;
-//        if (blockSize > 1024)
-//            blockSize = 1024;
-//        add_bias<<<grid, blockSize, 0, stream>>>((half2 *) x, (const half2 *) bias, n / 2);
-//    } else {
-//        if (blockSize > 1024)
-//            blockSize = 1024;
-//        add_bias<<<grid, blockSize, 0, stream>>>(x, bias, n);
-//    }
-//}
+
+template<typename T>
+__global__ void add_bias(T *x, const T *bias, int n) {
+    const int bid = blockIdx.x;
+    auto b = bias[bid];
+    for (int tid = threadIdx.x; tid < n; tid += blockDim.x)
+        x[bid * n + tid] += b;
+}
+
+// [channel, batch, H, W] x + [channel] bias
+template<typename T>
+void add_bias_kernelLauncher(T *x, const T *bias, int channel, int batch, int H, int W, cudaStream_t stream) {
+    dim3 grid(channel);
+    int n = W * H * batch;
+    int blockSize = n;
+
+    if (blockSize > 1024)
+        blockSize = 1024;
+    add_bias<<<grid, blockSize, 0, stream>>>(x, bias, n);
+}
+
+
+template<typename T>
+__global__ void transpose(T *output, const T *input, int n) {
+    int c = blockIdx.y;
+    int bs = blockIdx.x;
+    for (int tid = threadIdx.x; tid < n; tid += blockDim.x) {
+        output[(bs * gridDim.y + c) * n + tid] = input[(c * gridDim.x + bs) * n + tid];
+    }
+}
+
+// [c, n, h, w] => [n, c, h, w]
+template<typename T>
+void transpose_kernelLauncher(T *output, const T *input, int bs, int c, int h, int w, cudaStream_t stream) {
+    dim3 grid(bs, c);
+    int n = w * h;
+    int blockSize = n;
+    if (std::is_same<T, half>::value && n % 2 == 0) {
+        blockSize /= 2;
+        if (blockSize > 1024) {
+            blockSize = 1024;
+        }
+        transpose<<<grid, blockSize, 0, stream>>>((half2 *) output, (const half2 *) input, n / 2);
+    } else {
+        if (blockSize > 1024) {
+            blockSize = 1024;
+        }
+        transpose<<<grid, blockSize, 0, stream>>>(output, input, n);
+    }
+}
+
 
 template<typename T>
 __device__ T bilinear_interpolate(const T *in, int height, int width, T h, T w) {
@@ -196,6 +221,7 @@ void gemm(
 template<typename T>
 void deform_conv2d_kernel_launcher(
         T *output_ptr,
+        T *tmp_output_ptr,
         T *columns_ptr,
         const T *input_ptr,
         const T *offset_ptr,
@@ -255,22 +281,30 @@ void deform_conv2d_kernel_launcher(
     int m = out_c;
     int n = bs * out_h * out_w;
     int k = in_c * kernel_h * kernel_w;
-    gemm((T *) output_ptr, (T *) columns_ptr, (T *) weight_ptr, n, m, k, n, k, n, CUBLAS_OP_N, CUBLAS_OP_N, mCublas);
+    gemm((T *) tmp_output_ptr, (T *) columns_ptr, (T *) weight_ptr, n, m, k, n, k, n, CUBLAS_OP_N, CUBLAS_OP_N, mCublas);
 
     cudaError_t gemm_err = cudaGetLastError();
     if (gemm_err != cudaSuccess) {
         printf("error in gemm: %s\n", cudaGetErrorString(gemm_err));
     }
 
-    // output [out_c, bs, out_h, out_w]
-//    add_bias_kernelLauncher((T *) columns_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
-//    cudaError_t bias_err = cudaGetLastError();
-//    if (bias_err != cudaSuccess) {
-//        printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
-//    }
+    //output [out_c, bs, out_h, out_w]
+    add_bias_kernelLauncher((T *) tmp_output_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
+    cudaError_t bias_err = cudaGetLastError();
+    if (bias_err != cudaSuccess) {
+        printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
+    }
+
+    // transpose [b, c, h, w]
+    transpose_kernelLauncher((T *) output_ptr, (const T *) tmp_output_ptr, bs, out_c, out_h, out_w, stream);
+    cudaError_t transpose_err = cudaGetLastError();
+    if (transpose_err != cudaSuccess) {
+        printf("error in transpose_kernelLauncher: %s\n", cudaGetErrorString(transpose_err));
+    }
 }
 template void deform_conv2d_kernel_launcher(
         float *output_ptr,
+        float *tmp_output_ptr,
         float *columns_ptr,
         const float *input_ptr,
         const float *offset_ptr,

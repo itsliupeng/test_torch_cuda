@@ -35,6 +35,7 @@ void anchor_decode_kernelLauncher(float* output, const float* input, int n, int 
 template <typename T>
 void deform_conv2d_kernel_launcher(
         T *output_ptr,
+        T *tmp_output_ptr,
         T *columns_ptr,
         const T *input_ptr,
         const T *offset_ptr,

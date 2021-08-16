@@ -19,9 +19,9 @@ torch::Tensor focus(torch::Tensor in) {
 }
 
 int main() {
-    int bs = 3;
+    int bs = 2;
     int in_c = 3;
-    int in_h = 8;
+    int in_h = 120;
     int in_w = in_h;
 
     int kernel = 3;
@@ -45,19 +45,20 @@ int main() {
     auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
 
     auto weight = torch::ones({out_c, in_c, kernel, kernel}, options);
-    auto bias = torch::zeros({out_c}, options);
+//    auto bias = torch::zeros({out_c}, options);
+    auto bias = torch::rand({out_c}, options);
 
     bool use_mask = true;
     auto vision_out = vision::ops::deform_conv2d(in, weight, offset, mask, bias, stride, stride, pad, pad, dilation, dilation, weight_groups, offset_groups, use_mask);
 
-    std::cout << "input: \n"
-              << in << std::endl;
+//    std::cout << "input: \n"
+//              << in << std::endl;
+//
+//    std::cout << "vision out: \n"
+//              << vision_out << std::endl;
 
-    std::cout << "vision out: \n"
-              << vision_out << std::endl;
 
-
-    auto dcn_out = torch::zeros({out_c, bs, out_h, out_w}, options);
+    auto dcn_out = torch::zeros({bs, out_c, out_h, out_w}, options);
     auto column = torch::zeros({weight_groups, in_c / weight_groups * kernel * kernel, bs, out_h, out_w}, options);
 
     cublasHandle_t cublas_handle;
@@ -65,9 +66,10 @@ int main() {
     cudaStream_t stream = torch::cuda::getCurrentCUDAStream().stream();
     check_cuda_error(cublasSetStream(cublas_handle, stream));
 
-
+    auto tmp_dcn_out = at::zeros({out_c, bs, out_h, out_w}, dcn_out.options());
     deform_conv2d_kernel_launcher(
             dcn_out.data_ptr<float>(),
+            tmp_dcn_out.data_ptr<float>(),
             column.data_ptr<float>(),
             in.data_ptr<float>(),
             offset.data_ptr<float>(),
@@ -94,10 +96,10 @@ int main() {
             cublas_handle,
             stream);
 
-    dcn_out = dcn_out.permute({1, 0, 2, 3});
-
-    std::cout << "dcn out: \n"
-              << dcn_out << std::endl;
+//    dcn_out = dcn_out.permute({1, 0, 2, 3});
+//
+//    std::cout << "dcn out: \n"
+//              << dcn_out << std::endl;
 
     auto diff = torch::abs(vision_out - dcn_out);
     std::cout << "diff max " << diff.max() << ", sum " << diff.sum() << std::endl;
