@@ -5,6 +5,11 @@
 #define CUDA_1D_KERNEL_LOOP(i, n) \
     for (int i = (blockIdx.x * blockDim.x) + threadIdx.x; i < (n); i += (blockDim.x * gridDim.x))
 
+
+__device__ inline float sigmoid(float data) {
+    return 1.0f / (1.0f + expf(-data));
+}
+
 template<typename T>
 __global__ void add_bias(T *x, const T *bias, int n) {
     const int bid = blockIdx.x;
@@ -128,10 +133,11 @@ __global__ void deformable_im2col_kernel(
 
         input_ptr += (out_b * (n_in_channels * height * width) + in_c * (height * width));
 
-        offset_ptr += (out_b * n_offset_grps + grp_idx) * 2 * weight_h * weight_w * out_h * out_w;
+        offset_ptr += (out_b * n_offset_grps + grp_idx) * 3 * weight_h * weight_w * out_h * out_w;
 
         if (use_mask) {
-            mask_ptr += (out_b * n_offset_grps + grp_idx) * weight_h * weight_w * out_h * out_w;
+//            mask_ptr += (out_b * n_offset_grps + grp_idx) * weight_h * weight_w * out_h * out_w;
+            mask_ptr = offset_ptr + 2 * weight_h * weight_w * out_h * out_w;
         }
 
         for (int i = 0; i < weight_h; ++i) {
@@ -142,6 +148,7 @@ __global__ void deformable_im2col_kernel(
                 T mask_value = 1;
                 if (use_mask) {
                     mask_value = mask_ptr[mask_idx * (out_h * out_w) + out_y * out_w + out_x];
+                    mask_value = sigmoid(mask_value);
                 }
 
                 const T offset_h = offset_ptr[offset_idx * (out_h * out_w) + out_y * out_w + out_x];

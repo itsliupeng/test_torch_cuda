@@ -7,9 +7,9 @@
 int main() {
     int bs = 2;
     int weight_groups = 1;
-    int offset_groups = 2;
+    int offset_groups = 1;
     int in_c = 3 * offset_groups;
-    int in_h = 120;
+    int in_h = 2;
     int in_w = in_h;
 
     int kernel = 3;
@@ -28,8 +28,19 @@ int main() {
 
 //    auto in = torch::arange(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
     auto in = torch::randn(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
-    auto offset = torch::randn({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
-    auto mask = torch::rand({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
+//    auto offset = torch::randn({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
+//    auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
+//
+//    auto offset_mask = torch::cat({offset, mask}, 1);
+    auto offset_mask = torch::randn({bs,  offset_groups * kernel * kernel * 3, out_h, out_w}, options);
+    using namespace torch::indexing;
+    auto offset_channel = offset_mask.size(1) / 3 * 2;
+    auto offset = offset_mask.index({Slice(), Slice(0, offset_channel), Slice(), Slice()});
+    auto mask = offset_mask.index({Slice(), Slice(offset_channel), Slice(), Slice()});
+
+
+
+    std::cout << "offset shape " << offset.sizes() << ", mask shape " << mask.sizes() << ", offset_mask shape " << offset_mask.sizes() << std::endl;
 
     auto weight = torch::randn({out_c, in_c / weight_groups, kernel, kernel}, options);
 //    auto bias = torch::zeros({out_c}, options);
@@ -59,7 +70,7 @@ int main() {
             tmp_dcn_out.data_ptr<float>(),
             column.data_ptr<float>(),
             in.data_ptr<float>(),
-            offset.data_ptr<float>(),
+            offset_mask.data_ptr<float>(),
             mask.sigmoid().data_ptr<float>(),
             weight.data_ptr<float>(),
             bias.data_ptr<float>(),
