@@ -26,16 +26,17 @@ int main() {
 
     auto options = at::TensorOptions().dtype(at::kFloat).device(at::kCUDA);
 
-    auto in = torch::arange(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
-    auto offset = torch::ones({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
-    auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
+//    auto in = torch::arange(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
+    auto in = torch::randn(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
+    auto offset = torch::randn({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
+    auto mask = torch::rand({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
 
-    auto weight = torch::ones({out_c, in_c / weight_groups, kernel, kernel}, options);
+    auto weight = torch::randn({out_c, in_c / weight_groups, kernel, kernel}, options);
 //    auto bias = torch::zeros({out_c}, options);
     auto bias = torch::rand({out_c}, options);
 
     bool use_mask = true;
-    auto vision_out = vision::ops::deform_conv2d(in, weight, offset, mask, bias, stride, stride, pad, pad, dilation, dilation, weight_groups, offset_groups, use_mask);
+    auto vision_out = vision::ops::deform_conv2d(in, weight, offset, mask.sigmoid(), bias, stride, stride, pad, pad, dilation, dilation, weight_groups, offset_groups, use_mask);
 
 //    std::cout << "input: \n"
 //              << in << std::endl;
@@ -59,7 +60,7 @@ int main() {
             column.data_ptr<float>(),
             in.data_ptr<float>(),
             offset.data_ptr<float>(),
-            mask.data_ptr<float>(),
+            mask.sigmoid().data_ptr<float>(),
             weight.data_ptr<float>(),
             bias.data_ptr<float>(),
             in.size(0),

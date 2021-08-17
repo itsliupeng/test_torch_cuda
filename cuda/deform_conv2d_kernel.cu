@@ -114,7 +114,7 @@ __global__ void deformable_im2col_kernel(
         int out_w,
         bool use_mask,
         T *columns_ptr) {
-    CUDA_1D_KERNEL_LOOP(index, n) {
+    for (int index = (blockIdx.x * blockDim.x) + threadIdx.x; index < (n); index += (blockDim.x * gridDim.x)) {
         const int out_x = index % out_w;
         const int out_y = (index / out_w) % out_h;
         const int out_b = (index / (out_w * out_h)) % batch_sz;
