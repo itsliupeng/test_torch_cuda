@@ -5,11 +5,11 @@
 #include <torch/script.h>
 
 int main() {
-    int bs = 2;
+    int bs = 8;
     int weight_groups = 1;
     int offset_groups = 1;
     int in_c = 3 * offset_groups;
-    int in_h = 2;
+    int in_h = 224;
     int in_w = in_h;
 
     int kernel = 3;
@@ -71,7 +71,7 @@ int main() {
             column.data_ptr<float>(),
             in.data_ptr<float>(),
             offset_mask.data_ptr<float>(),
-            mask.sigmoid().data_ptr<float>(),
+            (float*) nullptr,
             weight.data_ptr<float>(),
             bias.data_ptr<float>(),
             in.size(0),
@@ -90,7 +90,7 @@ int main() {
             offset_groups,
             dcn_out.size(2),
             dcn_out.size(3),
-            use_mask,
+            use_mask, true,
             cublas_handle,
             stream);
 

@@ -33,31 +33,4 @@ void focus_kernelLauncher(T* output, T* input, int n, int c, int h, int w, cudaS
 void anchor_decode_kernelLauncher(float* output, const float* input, int n, int na, int no, int h, int w, float* anchors, float stride, cudaStream_t stream);
 
 template <typename T>
-void deform_conv2d_kernel_launcher(
-        T *output_ptr,
-        T *tmp_output_ptr,
-        T *columns_ptr,
-        const T *input_ptr,
-        const T *offset_ptr,
-        const T *mask_ptr,
-        const T *weight_ptr,
-        const T *bias_ptr,
-        int bs,
-        int in_h,
-        int in_w,
-        int out_c,
-        int in_c,
-        int kernel_h,
-        int kernel_w,
-        int pad_h,
-        int pad_w,
-        int stride_h,
-        int stride_w,
-        int dilation_h,
-        int dilation_w,
-        int offset_groups,
-        int out_h,
-        int out_w,
-        bool use_mask,
-        cublasHandle_t mCublas,
-        cudaStream_t stream);
+void deform_conv2d_kernel_launcher(T *output_ptr, T *tmp_output_ptr, T *columns_ptr, const T *input_ptr, const T *offset_ptr, const T *mask_ptr, const T *weight_ptr, const T *bias_ptr, int bs, int in_h, int in_w, int out_c, int in_c, int kernel_h, int kernel_w, int pad_h, int pad_w, int stride_h, int stride_w, int dilation_h, int dilation_w, int offset_groups, int out_h, int out_w, bool use_mask, bool use_bias, cublasHandle_t mCublas, cudaStream_t stream);

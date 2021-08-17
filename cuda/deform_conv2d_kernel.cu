@@ -136,7 +136,7 @@ __global__ void deformable_im2col_kernel(
         offset_ptr += (out_b * n_offset_grps + grp_idx) * 3 * weight_h * weight_w * out_h * out_w;
 
         if (use_mask) {
-//            mask_ptr += (out_b * n_offset_grps + grp_idx) * weight_h * weight_w * out_h * out_w;
+            //            mask_ptr += (out_b * n_offset_grps + grp_idx) * weight_h * weight_w * out_h * out_w;
             mask_ptr = offset_ptr + 2 * weight_h * weight_w * out_h * out_w;
         }
 
@@ -226,34 +226,7 @@ void gemm(
 }
 
 template<typename T>
-void deform_conv2d_kernel_launcher(
-        T *output_ptr,
-        T *tmp_output_ptr,
-        T *columns_ptr,
-        const T *input_ptr,
-        const T *offset_ptr,
-        const T *mask_ptr,
-        const T *weight_ptr,
-        const T *bias_ptr,
-        int bs,
-        int in_h,
-        int in_w,
-        int out_c,
-        int in_c,
-        int kernel_h,
-        int kernel_w,
-        int pad_h,
-        int pad_w,
-        int stride_h,
-        int stride_w,
-        int dilation_h,
-        int dilation_w,
-        int offset_groups,
-        int out_h,
-        int out_w,
-        bool use_mask,
-        cublasHandle_t mCublas,
-        cudaStream_t stream) {
+void deform_conv2d_kernel_launcher(T *output_ptr, T *tmp_output_ptr, T *columns_ptr, const T *input_ptr, const T *offset_ptr, const T *mask_ptr, const T *weight_ptr, const T *bias_ptr, int bs, int in_h, int in_w, int out_c, int in_c, int kernel_h, int kernel_w, int pad_h, int pad_w, int stride_h, int stride_w, int dilation_h, int dilation_w, int offset_groups, int out_h, int out_w, bool use_mask, bool use_bias, cublasHandle_t mCublas, cudaStream_t stream) {
     int num_kernels = in_c * bs * out_h * out_w;
     const unsigned int threads = 512;
     const unsigned int blocks = (num_kernels + threads - 1) / threads;
@@ -295,11 +268,13 @@ void deform_conv2d_kernel_launcher(
         printf("error in gemm: %s\n", cudaGetErrorString(gemm_err));
     }
 
-    //output [out_c, bs, out_h, out_w]
-    add_bias_kernelLauncher((T *) tmp_output_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
-    cudaError_t bias_err = cudaGetLastError();
-    if (bias_err != cudaSuccess) {
-        printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
+    if (use_bias) {
+        //output [out_c, bs, out_h, out_w]
+        add_bias_kernelLauncher((T *) tmp_output_ptr, (const T *) bias_ptr, out_c, bs, out_h, out_w, stream);
+        cudaError_t bias_err = cudaGetLastError();
+        if (bias_err != cudaSuccess) {
+            printf("error in add_bias_kernelLauncher: %s\n", cudaGetErrorString(bias_err));
+        }
     }
 
     // transpose [b, c, h, w]
@@ -335,5 +310,6 @@ template void deform_conv2d_kernel_launcher(
         int out_h,
         int out_w,
         bool use_mask,
+        bool use_bias,
         cublasHandle_t mCublas,
         cudaStream_t stream);
