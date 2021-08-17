@@ -4,23 +4,11 @@
 #include <ops/deform_conv2d.h>
 #include <torch/script.h>
 
-torch::Tensor focus(torch::Tensor in) {
-    auto x = in;
-
-    using namespace torch::indexing;
-    return torch::cat(
-            {
-                    x.index({Ellipsis, Slice(None, None, 2), Slice(None, None, 2)}),
-                    x.index({Ellipsis, Slice(1, None, 2), Slice(None, None, 2)}),
-                    x.index({Ellipsis, Slice(None, None, 2), Slice(1, None, 2)}),
-                    x.index({Ellipsis, Slice(1, None, 2), Slice(1, None, 2)}),
-            },
-            1);
-}
-
 int main() {
     int bs = 2;
-    int in_c = 3;
+    int weight_groups = 1;
+    int offset_groups = 2;
+    int in_c = 3 * offset_groups;
     int in_h = 120;
     int in_w = in_h;
 
@@ -30,8 +18,6 @@ int main() {
     int dilation = 1;
 
     int out_c = in_c;
-    int weight_groups = 1;
-    int offset_groups = 1;
 
     // [n, c, h, w]
     auto dilation_kernel = dilation * (kernel - 1) + 1;
@@ -44,7 +30,7 @@ int main() {
     auto offset = torch::ones({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
     auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
 
-    auto weight = torch::ones({out_c, in_c, kernel, kernel}, options);
+    auto weight = torch::ones({out_c, in_c / weight_groups, kernel, kernel}, options);
 //    auto bias = torch::zeros({out_c}, options);
     auto bias = torch::rand({out_c}, options);
 
