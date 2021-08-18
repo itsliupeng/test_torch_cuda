@@ -3,14 +3,18 @@ set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 
 project(test_cuda LANGUAGES CXX CUDA)
 
-function (set_ifndef variable value)
-    if(NOT DEFINED ${variable})
+function(set_ifndef variable value)
+    if (NOT DEFINED ${variable})
         set(${variable} ${value} PARENT_SCOPE)
-    endif()
+    endif ()
 endfunction()
 
 set(CMAKE_CUDA_STANDARD 14)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O0 -G -Xcompiler -Wall -Wno-deprecated-declarations")
+if (CMAKE_BUILD_TYPE MATCHES "Debug")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -ggdb -g -O0 -Wno-deprecated-declarations -fPIC -pthread")
+else (CMAKE_BUILD_TYPE MATCHES "Release")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -O3 -Wno-deprecated-declarations -Wno-unused-function -fPIC -pthread")
+endif ()
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 find_package(CUDA 10.2 REQUIRED)
@@ -45,6 +49,13 @@ include_directories(
         ${TORCH_INCLUDE_DIRS}
 )
 
+find_library(CUDNN_LIB cudnn HINTS
+        ${CUDA_TOOLKIT_ROOT_DIR} ${CUDNN_ROOT_DIR} PATH_SUFFIXES lib64 lib)
+find_library(CUBLAS_LIB cublas HINTS
+        ${CUDA_TOOLKIT_ROOT_DIR} PATH_SUFFIXES lib64 lib lib/stubs)
+find_library(CUBLASLT_LIB cublasLt HINTS
+        ${CUDA_TOOLKIT_ROOT_DIR} PATH_SUFFIXES lib64 lib lib/stubs)
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(cuda)
@@ -60,6 +71,9 @@ target_link_libraries(temporal_shift cuda_kernels ${TORCH_LIBRARIES})
 
 add_executable(deform_conv2d deform_conv2d.cpp)
 target_link_libraries(deform_conv2d cuda_kernels ${TORCH_LIBRARIES} ${TorchVision_LIBRARY})
+
+add_executable(test_batch_gemm test_batch_gemm.cc)
+target_link_libraries(test_batch_gemm PUBLIC ${CUDA_LIBRARIES} ${CUBLAS_LIB})
 
 
 #set_target_properties(

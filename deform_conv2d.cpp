@@ -28,15 +28,15 @@ int main() {
 
 //    auto in = torch::arange(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
     auto in = torch::randn(bs * in_c * in_h * in_w, options).reshape({bs, in_c, in_h, in_w});
-//    auto offset = torch::randn({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
-//    auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
-//
-//    auto offset_mask = torch::cat({offset, mask}, 1);
-    auto offset_mask = torch::randn({bs,  offset_groups * kernel * kernel * 3, out_h, out_w}, options);
-    using namespace torch::indexing;
-    auto offset_channel = offset_mask.size(1) / 3 * 2;
-    auto offset = offset_mask.index({Slice(), Slice(0, offset_channel), Slice(), Slice()});
-    auto mask = offset_mask.index({Slice(), Slice(offset_channel), Slice(), Slice()});
+    auto offset = torch::randn({bs, offset_groups * kernel * kernel * 2, out_h, out_w}, options);
+    auto mask = torch::ones({bs, offset_groups * kernel * kernel, out_h, out_w}, options);
+
+    auto offset_mask = torch::cat({offset, mask}, 1);
+//    auto offset_mask = torch::randn({bs,  offset_groups * kernel * kernel * 3, out_h, out_w}, options);
+//    using namespace torch::indexing;
+//    auto offset_channel = offset_mask.size(1) / 3 * 2;
+//    auto offset = offset_mask.index({Slice(), Slice(0, offset_channel), Slice(), Slice()});
+//    auto mask = offset_mask.index({Slice(), Slice(offset_channel), Slice(), Slice()});
 
 
 
